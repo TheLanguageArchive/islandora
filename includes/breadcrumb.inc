@@ -90,7 +90,7 @@ function islandora_get_breadcrumbs_recursive($pid, FedoraRepository $repository,
 
   $root = variable_get('islandora_repository_pid', 'islandora:root');
   if ($pid == $root) {
-    $title = 'Islandora Repository';
+    $title = 'Archive';
     $mlid = db_select('menu_links', 'ml')
       ->condition('ml.link_path', 'islandora')
       ->fields('ml', array('mlid'))

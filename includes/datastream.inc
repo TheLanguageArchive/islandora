@@ -469,6 +469,7 @@ function islandora_view_datastream_deliver_chunks(AbstractDatastream $datastream
  *   Exceptions may be thrown if the file was unable to be reliably acquired.
  */
 function islandora_view_datastream_retrieve_file_uri(AbstractDatastream $datastream) {
+  // Function modified to get E datastream range requests working as Fedora reports no datastream sizes for those. Probably needs a more solid solution than this quick hack.
   module_load_include('inc', 'islandora', 'includes/mimetype.utils');
   module_load_include('inc', 'islandora', 'includes/utilities');
 
@@ -479,7 +480,7 @@ function islandora_view_datastream_retrieve_file_uri(AbstractDatastream $datastr
   if (flock($fp, LOCK_SH)) {
     try {
       fseek($fp, 0, SEEK_END);
-      if (ftell($fp) === 0 && $datastream->size > 0) {
+      if (ftell($fp) === 0) {
         // Just opened at beginning of file, if beginning == EOF, need to grab
         // it.
         if (!flock($fp, LOCK_EX | LOCK_NB)) {
@@ -492,7 +493,7 @@ function islandora_view_datastream_retrieve_file_uri(AbstractDatastream $datastr
         if (flock($fp, LOCK_EX)) {
           // Get exclusive lock, write file.
           $file = islandora_temp_file_entry($file_uri, $datastream->mimeType);
-          if ($file->filesize == $datastream->size) {
+          if ($file->filesize != $datastream->size) {
             // Populated in another thread while we were waiting for the
             // "exclusive" lock; drop lock and return.
             flock($fp, LOCK_UN);
@@ -504,12 +505,6 @@ function islandora_view_datastream_retrieve_file_uri(AbstractDatastream $datastr
             $datastream->getContent($file->uri);
             clearstatcache($file->uri);
             $file = file_save($file);
-            if ($file->filesize != $datastream->size) {
-              throw new RepositoryException(t('Size of file downloaded for chunking does not match: Got @apparent bytes when expecting @actual.', array(
-                '@apparent' => $file->filesize,
-                '@actual' => $datastream->size,
-              )));
-            }
           }
           catch (RepositoryException $e) {
             file_delete($file);

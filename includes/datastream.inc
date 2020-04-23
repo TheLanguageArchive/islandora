@@ -135,6 +135,15 @@ function islandora_view_datastream(AbstractDatastream $datastream, $download = F
  * @see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.26
  */
 function islandora_parse_http_match_headers($header_value) {
+
+  /**
+   * @FLAT-CHANGES
+   *
+   * apache2 mod_deflate.c has a bug that appends gzip
+   * to if-match, if-none-match headers, so we remove it here
+   */
+  $header_value = str_replace('-gzip', '', $header_value);
+
   $matches = array();
   // Match the CSV-like structure supported by the HTTP headers.
   $count = preg_match_all('/(((W\/)?("?)(\*|.+?)\4)(, +)?)/', $header_value, $matches);

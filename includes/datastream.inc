@@ -46,6 +46,7 @@ function islandora_view_datastream(AbstractDatastream $datastream, $download = F
       return drupal_not_found();
     }
   }
+
   header('Content-type: ' . $datastream->mimetype);
   if ($datastream->controlGroup == 'M' || $datastream->controlGroup == 'X') {
     header('Content-length: ' . $datastream->size);
@@ -194,12 +195,16 @@ function islandora_view_datastream_cache_check(AbstractDatastream $datastream) {
     }
   }
 
+  // @FLAT-CHANGES
+  $datastream_etag_available = flat_is_etag_enabled_for_datastream($datastream);
+
   // Only consider Etags we have provided.
-  if (isset($datastream->checksum)) {
+  if (false !== $datastream_etag_available) {
     $tags = array();
     foreach ($datastream as $offset => $version) {
-      if (isset($version->checksum)) {
-        $tags[$offset] = $version->checksum;
+
+      if (flat_is_etag_enabled_for_datastream($version)) {
+        $tags[$offset] = flat_get_etag_for_datastream($datastream);
       }
     }
 
@@ -248,8 +253,10 @@ function islandora_view_datastream_set_cache_headers(AbstractDatastream $datastr
     $cache_control[] = 'max-age=0';
     header('Cache-Control: ' . implode(', ', $cache_control));
     header('Last-Modified: ' . $datastream->createdDate->format('D, d M Y H:i:s \G\M\T'));
-    if (isset($datastream->checksum)) {
-      header("Etag: \"{$datastream->checksum}\"");
+
+    // @FLAT-CHANGES
+    if (flat_is_etag_enabled_for_datastream($datastream)) {
+      flat_set_etag_for_datastream($datastream);
     }
   }
   else {
@@ -592,4 +599,45 @@ function islandora_view_datastream_retrieve_file_uri(AbstractDatastream $datastr
     '@pid' => $datastream->parent->id,
     '@dsid' => $datastream->id,
   )));
+}
+
+/**
+ * Getting etag for datastream
+ *
+ * @param AbstractDatastream $datastream
+ * @return string
+ */
+function flat_get_etag_for_datastream(AbstractDatastream $datastream) {
+
+  if (isset($datastream->checksum)) {
+    return $datastream->checksum;
+  }
+
+  return sha1(format_string('!pid-!datastream-!version', [
+
+    '!pid' => $datastream->parent->id,
+    '!datastream' => $datastream->id,
+    '!version' => $datastream->createdDate->getTimestamp(),
+  ]));
+}
+
+/**
+ * Checking whether etag is enabled for datastream
+ *
+ * @param AbstractDatastream $datastream
+ * @return boolean
+ */
+function flat_is_etag_enabled_for_datastream(AbstractDatastream $datastream) {
+  return in_array($datastream->id, ['TN']) || isset($datastream->checksum);
+}
+
+/**
+ * Because external datastream do not have a checksum,
+ * this method sets a custom etag to allow caching
+ *
+ * @param AbstractDatastream $datastream
+ * @return void
+ */
+function flat_set_etag_for_datastream(AbstractDatastream $datastream) {
+  header('Etag: "' . flat_get_etag_for_datastream($datastream) . '"');
 }
